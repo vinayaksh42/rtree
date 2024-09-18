@@ -1,64 +1,88 @@
 package com.github.davidmoten.rtree;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import com.github.davidmoten.rtree.geometry.Geometries;
-import com.github.davidmoten.rtree.geometry.Point;
 
 public class KryoSerializationTest {
 
-    @Test
-    @Ignore
-    public void testRTree() {
-        Kryo kryo = new Kryo();
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        Output output = new Output(bytes);
-        RTree<String, Point> tree = RTree.<String, Point> create()
-                .add(Entries.entry("thing", Geometries.point(10, 20)))
-                .add(Entries.entry("monster", Geometries.point(23, 45)));
-        kryo.writeObject(output, tree);
-        output.close();
-        Input input = new Input(new ByteArrayInputStream(bytes.toByteArray()));
-        @SuppressWarnings("unchecked")
-        RTree<String, Point> tree2 = kryo.readObject(input, RTree.class);
-        assertEquals(2, (int) tree2.entries().count().toBlocking().single());
-    }
+    public static class MyClass {
+        private int x;
+        private String y;
 
-    @Test
-    public void testKryo() {
-        Kryo kryo = new Kryo();
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        Output output = new Output(bytes);
-        Boo b = new Boo("hello");
-        kryo.register(Boo.class);
-        kryo.writeObject(output, b);
-        output.close();
-        Input input = new Input(new ByteArrayInputStream(bytes.toByteArray()));
-        Boo b2 = kryo.readObject(input, Boo.class);
-        assertEquals("hello", b2.name);
-    }
-
-    public static class Boo {
-
-        public final String name;
-
-        @SuppressWarnings("unused")
-        private Boo() {
-            this("boo");
+        public MyClass() {
         }
 
-        public Boo(String name) {
-            this.name = name;
+        public MyClass(int x, String y) {
+            this.x = x;
+            this.y = y;
+        }
+
+        // Getters and setters
+        public int getX() {
+            return x;
+        }
+
+        public void setX(int x) {
+            this.x = x;
+        }
+
+        public String getY() {
+            return y;
+        }
+
+        public void setY(String y) {
+            this.y = y;
+        }
+
+        // Override equals for assertion
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (!(obj instanceof MyClass))
+                return false;
+            MyClass other = (MyClass) obj;
+            return x == other.x && (y == null ? other.y == null : y.equals(other.y));
         }
     }
 
+    @Test
+    public void testSerializationWithoutRegistration() {
+        Kryo kryo = new Kryo();
+        // Do not set kryo.setRegistrationRequired(false); // Use default settings
+
+        MyClass originalObject = new MyClass(42, "Hello, Kryo!");
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        Output output = new Output(outputStream);
+
+        // Attempt to serialize without registering MyClass
+        try {
+            kryo.writeObject(output, originalObject);
+            output.close();
+
+            byte[] serializedData = outputStream.toByteArray();
+
+            Input input = new Input(new ByteArrayInputStream(serializedData));
+            MyClass deserializedObject = kryo.readObject(input, MyClass.class);
+            input.close();
+
+            // Verify that the deserialized object matches the original
+            assertEquals(originalObject, deserializedObject);
+            System.out.println("Serialization and deserialization succeeded without class registration.");
+        } catch (KryoException e) {
+            // If an exception is thrown, it indicates a change in behavior
+            System.err.println("Serialization failed: " + e.getMessage());
+            fail("Serialization failed due to class registration requirement.");
+        }
+    }
 }
